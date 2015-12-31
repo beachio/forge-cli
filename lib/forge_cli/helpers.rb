@@ -19,7 +19,7 @@ def unprocessable_message
 end
 
 def success
-  case @response.code
+  case @response.code.to_s
   when /20\d/
     yield if block_given?
   when /401/ then unauthorized_message

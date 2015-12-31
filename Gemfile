@@ -4,7 +4,7 @@ gem 'bundler'
 gem 'commander'
 gem 'dotenv'
 gem 'rubyzip'
-gem 'multipart-post'
+gem 'rest-client'
 
 group :development do
   # gem 'pry'

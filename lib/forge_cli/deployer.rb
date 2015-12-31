@@ -5,24 +5,27 @@ class Deployer
   end
 
   def deploy_to(domain)
-    say 'Creating arcive...'
+    say 'Creating archive...'
     zipfile_name = create_archive
     say " done.\n"
     say 'Sending data...'
-    endpoint = URI.parse("#{ENV['FORGE_URL']}/api/cli/deploy")
-    File.open(zipfile_name) do |archive|
-      req = Net::HTTP::Post::Multipart.new(
-        endpoint.path,
-        archive: UploadIO.new(archive, 'application/zip', 'archive.zip'),
-        domain: domain,
-        token: credentials['token']
-      )
-      @response = Net::HTTP.start(endpoint.host, endpoint.port) do |http|
-        http.request(req)
-      end
-    end
+    endpoint = "#{ENV['FORGE_URL']}/api/cli/deploy"
+    @response = RestClient.post(endpoint, archive: File.open(zipfile_name),
+                                          domain: domain,
+                                          token: credentials['token'])
+    # File.open(zipfile_name) do |archive|
+    #   req = Net::HTTP::Post::Multipart.new(
+    #     endpoint.path,
+    #     archive: UploadIO.new(archive, 'application/zip', 'archive.zip'),
+    #     domain: domain,
+    #     token: credentials['token']
+    #   )
+    #   @response = Net::HTTP.start(endpoint.host, endpoint.port) do |http|
+    #     http.request(req)
+    #   end
+    # end
     success do
-      say("Wow, #{domain} successfully added to deploy queue.")
+      say("#{domain} successfully added to deploy queue.")
     end
   end
 
