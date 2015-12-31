@@ -9,7 +9,7 @@ end
 require 'rubygems'
 require 'commander/import'
 require 'net/http'
-require 'net/http/post/multipart'
+require 'rest-client'
 require 'json'
 require 'zip'
 require 'dotenv'
