@@ -1,0 +1,30 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    coderay (1.1.0)
+    commander (4.3.5)
+      highline (~> 1.7.2)
+    dotenv (2.0.2)
+    highline (1.7.8)
+    method_source (0.8.2)
+    multipart-post (2.0.0)
+    pry (0.10.3)
+      coderay (~> 1.1.0)
+      method_source (~> 0.8.1)
+      slop (~> 3.4)
+    rubyzip (1.1.7)
+    slop (3.6.0)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  bundler
+  commander
+  dotenv
+  multipart-post
+  pry
+  rubyzip
+
+BUNDLED WITH
+   1.11.1

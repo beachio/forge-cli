@@ -1,0 +1,187 @@
+#!/usr/bin/env ruby
+@root_directory = File.expand_path File.join(__dir__, '..')
+
+gem_dir = File.expand_path(File.join(@root_directory, 'vendor', 'gems'))
+Dir[File.join(gem_dir, '*', 'lib')].each do |lib_dir|
+  $LOAD_PATH.unshift lib_dir
+end
+
+require 'rubygems'
+require 'commander/import'
+require 'net/http'
+require 'net/http/post/multipart'
+require 'json'
+require 'zip'
+require 'dotenv'
+
+require 'pry'
+
+Dotenv.load(File.join(@root_directory, '.env'))
+
+$LOAD_PATH.unshift File.join(@root_directory, 'lib')
+require 'forge_cli/store'
+require 'forge_cli/deployer'
+require 'forge_cli/credential_helper'
+require 'forge_cli/helpers'
+
+program :version, '0.0.1'
+program :description, 'The Forge CLI is used to manage forge sites from command line.'
+
+command :login do |c|
+  c.syntax = 'forge-cli login [options]'
+  c.summary = 'Allow to login on getforge.com'
+  c.example 'Log In', 'forge-cli login --email=me@example.com --password=qwerty123'
+  c.example 'Log In (interactive)', 'forge-cli login'
+  c.option '--email=EMAIL', String, 'Email address'
+  c.option '--password=PASSWORD', String, 'Password'
+  c.action do |args, options|
+    email = options.email || ask('Enter your email: ')
+    password = options.password || password('Password: ', '*')
+    endpoint = URI.parse("#{ENV['FORGE_URL']}/api/cli/login")
+    @response = Net::HTTP.post_form(endpoint, email: email, password: password)
+    success do
+      save_credentials
+      hello_message
+    end
+  end
+end
+
+command :logout do |c|
+  c.syntax = 'Forge CLI logout'
+  c.summary = 'Clear saved credentials'
+  c.action do
+    clear_credentials
+    say('You was logged out.')
+  end
+end
+
+command :create do |c|
+  c.syntax = 'forge-cli create <name> [OPTIONS]'
+  c.summary = 'Allow to create new sites from console.'
+  c.example 'Create new site on getforge.io', 'forge-cli create devblog'
+  c.example 'Create new site with custom domain', 'forge-cli create devblog.com --custom'
+  c.option '--name NAME', String, 'Subdomain for new site'
+  c.option '--custom', TrueClass, 'If "name" is custom domain'
+  c.action do |args, options|
+    subdomain = options.name || args.first
+    if subdomain.nil?
+      say('Please, specify domain name.')
+      exit(1)
+    end
+    authenticate
+    domain = options.custom ? subdomain : "#{subdomain}.getforge.io"
+    endpoint = URI.parse("#{ENV['FORGE_URL']}/api/cli/create")
+    @response = Net::HTTP.post_form(
+      endpoint,
+      name: domain, token: credentials['token'], custom: options.custom
+    )
+    success do
+      say("#{domain} was successfully created.")
+    end
+  end
+end
+
+command :add do |c|
+  c.syntax = 'forge-cli add <domain>'
+  c.summary = 'Assign the remote site to the current directory'
+  c.example 'description', 'forge-cli add devblog.getforge.io'
+  c.action do |args|
+    authenticate
+    domain = args.first
+    if domain.nil?
+      say 'Please, specify domain name'
+      exit(1)
+    end
+    endpoint = URI.parse("#{ENV['FORGE_URL']}/api/cli/sites")
+    endpoint.query = URI.encode_www_form(token: credentials['token'])
+    @response = Net::HTTP.get_response(endpoint)
+    success do
+      if response.include?(domain)
+        Store.remove('directory_mapping', domain)
+        Store.add('directory_mapping', domain, Dir.pwd)
+        File.open(File.join(Dir.pwd, '.forge'), 'w+') { |f| f.write(domain) }
+        say('Successfully added.')
+      else
+        say('You don\'t have such domain. Use `forge-cli sites` to see available domains')
+      end
+    end
+  end
+end
+
+command :deploy do |c|
+  c.syntax = 'forge-cli deploy'
+  c.summary = 'Deploy site to the linked remote destination (if present)'
+  c.action do
+    domain = false
+    if File.exist?(File.join(Dir.pwd, '.forge'))
+      domain = File.read(File.join(Dir.pwd, '.forge'))
+    else
+      stored_data = Store.get('directory_mapping') || {}
+      domain = stored_data.key(File.expand_path(Dir.pwd))
+    end
+    unless domain
+      say('No remote destination. Use `forge-cli add <domain>` to add it.')
+      exit(1)
+    end
+    deployer = Deployer.new(File.expand_path(Dir.pwd))
+    deployer.deploy_to(domain)
+    # zip all files
+    # send to server
+    # profit?
+  end
+end
+
+command :rollback do |c|
+  c.syntax = 'Forge CLI rollback [options]'
+  c.summary = ''
+  c.description = ''
+  c.example 'description', 'command example'
+  c.option '--some-switch', 'Some switch that does something'
+  c.action do |args, options|
+    # Do something or c.when_called Forge cli::Commands::Rollback
+  end
+end
+
+command :versions do |c|
+  c.syntax = 'Forge CLI versions [options]'
+  c.summary = ''
+  c.description = ''
+  c.example 'description', 'command example'
+  c.option '--some-switch', 'Some switch that does something'
+  c.action do |args, options|
+    # Do something or c.when_called Forge cli::Commands::Versions
+  end
+end
+
+command :sites do |c|
+  c.syntax = 'forge-cli sites'
+  c.summary = 'Show available sites'
+  c.action do
+    authenticate
+    endpoint = URI.parse("#{ENV['FORGE_URL']}/api/cli/sites")
+    endpoint.query = URI.encode_www_form(token: credentials['token'])
+    @response = Net::HTTP.get_response(endpoint)
+    success do
+      if response.size > 0
+        say("Available sites are: \n")
+        response.each do |site|
+          say(" * #{site}\n")
+        end
+      else
+        say('You have no sites available. Use `forge-cli create` to create a site.')
+      end
+    end
+  end
+end
+
+command :init do |c|
+  c.syntax = 'Forge CLI init [options]'
+  c.summary = ''
+  c.description = ''
+  c.example 'description', 'command example'
+  c.option '--some-switch', 'Some switch that does something'
+  c.action do |args, options|
+    # Do something or c.when_called Forge cli::Commands::Init
+  end
+end
+
