@@ -7,5 +7,5 @@ gem 'rubyzip'
 gem 'multipart-post'
 
 group :development do
-  gem 'pry'
+  # gem 'pry'
 end

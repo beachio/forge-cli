@@ -14,7 +14,7 @@ require 'json'
 require 'zip'
 require 'dotenv'
 
-require 'pry'
+# require 'pry'
 
 Dotenv.load(File.join(@root_directory, '.env'))
 
