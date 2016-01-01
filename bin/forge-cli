@@ -25,7 +25,7 @@ require 'forge_cli/credential_helper'
 require 'forge_cli/helpers'
 
 program :version, '0.0.1'
-program :description, 'The Forge CLI is used to manage forge sites from command line.'
+program :description, 'The Forge Command Line Interface (CLI) is used to manage forge sites from the command line.'
 
 command :login do |c|
   c.syntax = 'forge-cli login [options]'
@@ -51,13 +51,13 @@ command :logout do |c|
   c.summary = 'Clear saved credentials'
   c.action do
     clear_credentials
-    say('You was logged out.')
+    say('You were logged out successfully. Have a nice day :)')
   end
 end
 
 command :create do |c|
   c.syntax = 'forge-cli create <name> [OPTIONS]'
-  c.summary = 'Allow to create new sites from console.'
+  c.summary = 'Enabling the creation of new sites from console.'
   c.example 'Create new site on getforge.io', 'forge-cli create devblog'
   c.example 'Create new site with custom domain', 'forge-cli create devblog.com --custom'
   c.option '--name NAME', String, 'Subdomain for new site'
@@ -89,7 +89,7 @@ command :add do |c|
     authenticate
     domain = args.first
     if domain.nil?
-      say 'Please, specify domain name'
+      say 'Please specify a domain name'
       exit(1)
     end
     endpoint = URI.parse("#{ENV['FORGE_URL']}/api/cli/sites")
@@ -102,7 +102,7 @@ command :add do |c|
         File.open(File.join(Dir.pwd, '.forge'), 'w+') { |f| f.write(domain) }
         say('Successfully added.')
       else
-        say('You don\'t have such domain. Use `forge-cli sites` to see available domains')
+        say('You don\'t own such a domain. Use `forge-cli sites` to see available domains')
       end
     end
   end
