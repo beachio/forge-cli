@@ -36,5 +36,19 @@ class Store
     def drop(key)
       File.unlink(File.join(Store.data_dir, key))
     end
+
+    def add_to_exist(key, value_key, value)
+      data = Store.get(key)
+      if data.nil?
+        Store.set(key, { value_key => value })
+      else
+        if value.any?
+          value.keys.each do |key|
+            data[value_key][key] = value[key]
+          end
+        end
+        Store.set(key, data)
+      end
+    end
   end
 end

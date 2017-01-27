@@ -1,2 +1,5 @@
 vendor/bundle*
 data/*
+.forge
+.idea/
+vendor/

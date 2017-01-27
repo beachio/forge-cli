@@ -29,3 +29,11 @@ def success
     say("Unknown response, code: #{@response.code}")
   end
 end
+
+def get_tokens hash
+  if hash.is_a?(Hash)
+    hash.values.join(',')
+  else
+    hash
+  end
+end

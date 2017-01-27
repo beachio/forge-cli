@@ -9,10 +9,10 @@ class Deployer
     zipfile_name = create_archive
     say " done.\n"
     say 'Sending data...'
-    endpoint = "#{ENV['FORGE_URL']}/api/cli/deploy"
+    endpoint = "#{ENV['FORGE_URL']}/external_api/v2/cli/deploy"
     @response = RestClient.post(endpoint, archive: File.open(zipfile_name),
                                           domain: domain,
-                                          token: credentials['token'])
+                                          site_tokens: get_site_token(domain))
     # File.open(zipfile_name) do |archive|
     #   req = Net::HTTP::Post::Multipart.new(
     #     endpoint.path,
@@ -48,5 +48,9 @@ class Deployer
         zipfile.add(filename, File.join(directory, entry))
       end
     end
+  end
+
+  def get_site_token(domain)
+    credentials['site_tokens'][domain]
   end
 end
