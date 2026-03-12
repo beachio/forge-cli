@@ -1,0 +1,14 @@
+src/
+bin/
+test-site/
+docs/
+coverage/
+*.tsbuildinfo
+tsup.config.ts
+tsconfig.json
+eslint.config.*
+.prettierrc*
+.env
+.env.local
+.DS_Store
+.gitignore

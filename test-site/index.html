@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Forge CLI Test Site</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="card">
+    <div class="badge">Deployed with Forge CLI v2</div>
+    <h1>Hello from Forge</h1>
+    <p>This site was deployed using the new Forge CLI. If you can see this, everything is working.</p>
+  </div>
+
+  <div class="features">
+    <div class="feature">
+      <h3>Real-Time Status</h3>
+      <p>Live deploy progress powered by Pusher events.</p>
+    </div>
+    <div class="feature">
+      <h3>Archive &amp; Upload</h3>
+      <p>Source files zipped and uploaded in a single request.</p>
+    </div>
+    <div class="feature">
+      <h3>Versioned Deploys</h3>
+      <p>Every deploy gets a version number for easy rollback.</p>
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <span class="status-dot"></span>
+    <span id="deploy-time">Checking deploy time...</span>
+    <span>&middot;</span>
+    <span>Uptime: <span class="uptime">0s</span></span>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

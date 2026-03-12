@@ -1,0 +1,10 @@
+{
+  "site": "my-cli-site.getforge.io",
+  "deploy_directory": ".",
+  "compiler": "none",
+  "ignore": [
+    "node_modules",
+    ".git",
+    ".env"
+  ]
+}

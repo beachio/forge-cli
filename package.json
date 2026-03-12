@@ -1,0 +1,70 @@
+{
+  "name": "@beachio/forge-cli",
+  "version": "2.0.0",
+  "description": "Command line interface for GetForge.com — deploy and manage your Forge sites from the terminal",
+  "type": "module",
+  "bin": {
+    "forge": "./dist/bin/forge-cli.js",
+    "forge-cli": "./dist/bin/forge-cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "start": "node dist/bin/forge-cli.js",
+    "lint": "eslint src bin --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\" \"bin/**/*.ts\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "forge",
+    "getforge",
+    "cli",
+    "deploy",
+    "static-site",
+    "hosting"
+  ],
+  "author": "Beach.io",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/beachio/forge-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/beachio/forge-cli/issues"
+  },
+  "homepage": "https://getforge.com",
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "chalk": "^5.4.1",
+    "commander": "^13.1.0",
+    "conf": "^13.1.0",
+    "ignore": "^7.0.3",
+    "inquirer": "^12.4.2",
+    "open": "^10.1.0",
+    "ora": "^8.2.0",
+    "pusher-js": "^8.4.0"
+  },
+  "devDependencies": {
+    "@types/archiver": "^6.0.3",
+    "@types/node": "^22.13.10",
+    "eslint": "^9.22.0",
+    "prettier": "^3.5.3",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  }
+}
