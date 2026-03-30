@@ -34,6 +34,7 @@ These options apply to all commands:
 |---|---|
 | `--json` | Output results as JSON |
 | `--quiet` | Suppress all output except errors |
+| `--debug-http` | Print full HTTP request/response debug logs |
 | `--token <token>` | Authenticate with a CLI token |
 | `--site-token <token>` | Authenticate with a site token |
 | `-v, --version` | Show version |
@@ -153,6 +154,8 @@ forge sites --page 1 --limit 20         # Paginate results
 forge create --name my-site              # Create a site at my-site.getforge.io
 forge create --name my-app --custom mysite.com   # With a custom domain
 forge create --name my-site --org 123    # Under an organisation
+forge create --name my-site --project 5  # Create and place in project id 5
+forge create --name my-site --project "Marketing Sites"  # Create and place by project name
 ```
 
 | Option | Description |
@@ -160,6 +163,9 @@ forge create --name my-site --org 123    # Under an organisation
 | `--name <name>` | Site name, 3–63 chars, alphanumeric and hyphens (required) |
 | `--custom <domain>` | Custom domain to assign |
 | `--org <id>` | Create under an organisation |
+| `--project <id\|name>` | Add site to a project (folder) by numeric ID or name |
+
+When `--project` is a name rather than a numeric ID, the CLI resolves it automatically.
 
 ### Link a Directory
 
@@ -204,6 +210,25 @@ forge deploy --no-watch                  # Skip real-time deploy tracking
 | `--no-watch` | Skip real-time deploy log streaming |
 
 Deploys create a zip archive of your project, upload it, and stream real-time build logs back to the terminal. Use `--no-watch` to fire and forget.
+
+### Redeploy (from source)
+
+```bash
+forge redeploy                           # Redeploy linked site from connected source
+forge redeploy --site my-site            # Redeploy a specific site
+forge redeploy --site my-site --org 7    # Resolve site under org context
+forge redeploy --cache                   # Reprocess current version (no source pull)
+forge redeploy --delay 30                # Queue deploy with a 30 second delay
+```
+
+| Option | Description |
+|---|---|
+| `-s, --site <site>` | Site name |
+| `--org <id>` | Organisation ID for site lookup (`personal` or `0` for personal) |
+| `--cache` | Redeploy current version without pulling from source |
+| `--delay <seconds>` | Delay deploy start by N seconds |
+
+Redeploy triggers `POST /api/v2/cli/redeploy` and is useful for CI/CD workflows where Forge pulls from GitHub, Bitbucket, or Dropbox directly.
 
 ## Versions & Rollback
 
@@ -331,6 +356,55 @@ forge org switch --id personal           # Switch back to personal context
 
 When you switch context, subsequent commands like `forge sites` and `forge create` operate within that organisation.
 
+## Projects (Folders)
+
+Projects group related sites together. A project belongs to either a user (personal) or an organisation.
+
+### List Projects
+
+```bash
+forge projects                           # List all your projects
+forge projects --org 123                 # Projects under a specific organisation
+```
+
+### Create a Project
+
+```bash
+forge project create "Marketing Sites"          # Personal project
+forge project create "Marketing Sites" --org 5  # Under an organisation
+```
+
+### Delete a Project
+
+```bash
+forge project delete 5                   # Delete project (prompts for confirmation)
+forge project delete 5 --force           # Skip confirmation (also deletes all sites in the project)
+```
+
+### Add a Site to a Project
+
+```bash
+forge project add-site 5                          # Add linked site (from forge.json)
+forge project add-site 5 --site my-site.getforge.io  # Add by URL
+forge project add-site 5 --site-id 42            # Add by site ID
+forge project add-site 5 --site-token abc123     # Add by site token
+```
+
+### Remove a Site from a Project
+
+```bash
+forge project remove-site 5 --site-id 42         # Remove site from project (site is not deleted)
+```
+
+### Create a Site Directly in a Project
+
+```bash
+forge create --name my-site --project 5
+forge create --name my-site --project "Marketing Sites"
+```
+
+The create-then-assign flow is handled automatically — it appears as a single operation.
+
 ## Project Configuration
 
 ### Initialize
@@ -441,6 +515,11 @@ For deploy-only access with a site token:
 | `forge usage` | Show bandwidth and build usage |
 | `forge orgs` | List organisations |
 | `forge org switch` | Switch organisation context |
+| `forge projects` | List projects (folders) |
+| `forge project create <name>` | Create a new project |
+| `forge project delete <id>` | Delete a project |
+| `forge project add-site <id>` | Add a site to a project |
+| `forge project remove-site <id>` | Remove a site from a project |
 | `forge init` | Create forge.json |
 
 ## Development

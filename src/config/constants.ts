@@ -21,6 +21,7 @@ export const API_PATHS = {
   sites: '/api/v2/cli/sites',
   create: '/api/v2/cli/create',
   deploy: '/api/v2/cli/deploy',
+  redeploy: '/api/v2/cli/redeploy',
   versionsInfo: '/api/v2/cli/versions_info',
   versions: '/api/v2/cli/versions',
   rollback: '/api/v2/cli/rollback',
@@ -34,6 +35,7 @@ export const API_PATHS = {
   usage: '/api/v2/cli/usage',
   organisations: '/api/v2/cli/organisations',
   organisationsSwitch: '/api/v2/cli/organisations/switch',
+  projects: '/api/v2/cli/projects',
 
   oauthAuthorize: '/oauth/authorize',
   oauthToken: '/oauth/token',

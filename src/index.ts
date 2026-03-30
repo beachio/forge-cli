@@ -18,6 +18,7 @@ import { registerCreateCommand } from './commands/create.js';
 import { registerAddCommand } from './commands/add.js';
 import { registerInfoCommand } from './commands/info.js';
 import { registerDeployCommand } from './commands/deploy.js';
+import { registerRedeployCommand } from './commands/redeploy.js';
 import { registerRollbackCommand } from './commands/rollback.js';
 import { registerVersionsCommand } from './commands/versions.js';
 import { registerInitCommand } from './commands/init.js';
@@ -27,6 +28,7 @@ import { registerDestroyCommand } from './commands/destroy.js';
 import { registerUsageCommand } from './commands/usage.js';
 import { registerDomainCommands } from './commands/domain/index.js';
 import { registerOrgCommands } from './commands/org/index.js';
+import { registerProjectCommands } from './commands/projects/index.js';
 
 export function createProgram(): Command {
   const program = new Command();
@@ -37,12 +39,14 @@ export function createProgram(): Command {
     .version(VERSION, '-v, --version')
     .option('--json', 'Output results as JSON')
     .option('--quiet', 'Suppress all output except errors')
+    .option('--debug-http', 'Print full HTTP request/response debug logs')
     .option('--token <token>', 'CLI token for authentication')
     .option('--site-token <token>', 'Site token for authentication')
     .hook('preAction', (thisCommand) => {
       const opts = thisCommand.opts();
       if (opts.json) setOutputMode('json');
       else if (opts.quiet) setOutputMode('quiet');
+      if (opts.debugHttp) process.env.FORGE_DEBUG_HTTP = '1';
     });
 
   registerLoginCommand(program);
@@ -54,6 +58,7 @@ export function createProgram(): Command {
   registerAddCommand(program);
   registerInfoCommand(program);
   registerDeployCommand(program);
+  registerRedeployCommand(program);
   registerRollbackCommand(program);
   registerVersionsCommand(program);
   registerInitCommand(program);
@@ -63,6 +68,7 @@ export function createProgram(): Command {
   registerUsageCommand(program);
   registerDomainCommands(program);
   registerOrgCommands(program);
+  registerProjectCommands(program);
 
   program.exitOverride((err) => {
     if (err.code === 'commander.version' || err.code === 'commander.helpDisplayed') {
