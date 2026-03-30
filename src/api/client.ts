@@ -70,27 +70,36 @@ export class ApiClient {
       requestBody = JSON.stringify({ site_token: siteToken });
     }
 
+    if (isHttpDebugEnabled()) {
+      debugHttpRequest(method, url.toString(), requestHeaders, requestBody);
+    }
+
     const response = await fetch(url.toString(), {
       method,
       headers: requestHeaders,
       body: requestBody,
     });
 
+    const responseText = await response.text();
+
+    if (isHttpDebugEnabled()) {
+      debugHttpResponse(response, responseText);
+    }
+
     if (!response.ok) {
-      await this.handleErrorResponse(response);
+      await this.handleErrorResponse(response, responseText);
     }
 
-    const text = await response.text();
     const contentType = response.headers.get('content-type');
-    if (contentType?.includes('application/json') && text.length > 0) {
-      return JSON.parse(text) as T;
+    if (contentType?.includes('application/json') && responseText.length > 0) {
+      return JSON.parse(responseText) as T;
     }
 
-    if (text.length === 0) {
+    if (responseText.length === 0) {
       return {} as T;
     }
 
-    return text as unknown as T;
+    return responseText as unknown as T;
   }
 
   async get<T>(path: string, options: Omit<RequestOptions, 'method'> = {}): Promise<T> {
@@ -105,12 +114,17 @@ export class ApiClient {
     return this.request<T>(path, { ...options, method: 'DELETE' });
   }
 
-  private async handleErrorResponse(response: Response): Promise<never> {
+  private async handleErrorResponse(response: Response, responseText?: string): Promise<never> {
     let errorData: ApiErrorResponse | undefined;
 
     try {
-      errorData = (await response.json()) as ApiErrorResponse;
+      const rawText = responseText ?? (await response.text());
+      errorData = JSON.parse(rawText) as ApiErrorResponse;
     } catch {
+      const fallback = responseText?.trim();
+      if (fallback) {
+        throw new ForgeError(`HTTP ${response.status}: ${fallback}`);
+      }
       throw new ForgeError(`HTTP ${response.status}: ${response.statusText}`);
     }
 
@@ -154,6 +168,82 @@ export class ApiClient {
         throw new ForgeError(`HTTP ${response.status}: ${message}`);
     }
   }
+}
+
+function isHttpDebugEnabled(): boolean {
+  const value = process.env.FORGE_DEBUG_HTTP?.trim().toLowerCase();
+  return value === '1' || value === 'true' || value === 'yes' || value === 'on';
+}
+
+function debugHttpResponse(response: Response, responseText: string): void {
+  const headers = Object.fromEntries(response.headers.entries());
+  const payload = [
+    '[forge:debug:http] RESPONSE',
+    `status: ${response.status} ${response.statusText}`,
+    `headers: ${safeStringify(headers)}`,
+    `body: ${formatDebugBody(responseText)}`,
+  ].join('\n');
+  process.stderr.write(`${payload}\n`);
+}
+
+function debugHttpRequest(
+  method: string,
+  url: string,
+  headers: Record<string, string>,
+  body: string | FormData | undefined,
+): void {
+  const payload = [
+    '[forge:debug:http] REQUEST',
+    `method: ${method}`,
+    `url: ${url}`,
+    `headers: ${safeStringify(headers)}`,
+    `body: ${formatRequestBody(body)}`,
+  ].join('\n');
+  process.stderr.write(`${payload}\n`);
+}
+
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function formatDebugBody(value: string): string {
+  if (!value) return '(empty)';
+  try {
+    return JSON.stringify(JSON.parse(value), null, 2);
+  } catch {
+    return value;
+  }
+}
+
+function formatRequestBody(body: string | FormData | undefined): string {
+  if (!body) return '(none)';
+  if (typeof body === 'string') {
+    return formatDebugBody(body);
+  }
+
+  const entries: Array<{ key: string; value: unknown }> = [];
+  for (const [key, value] of body.entries()) {
+    if (typeof value === 'string') {
+      entries.push({ key, value });
+      continue;
+    }
+
+    entries.push({
+      key,
+      value: {
+        type: value.type,
+        size: value.size,
+        ...(typeof (value as { name?: unknown }).name === 'string'
+          ? { name: (value as { name: string }).name }
+          : {}),
+      },
+    });
+  }
+  return safeStringify(entries);
 }
 
 let defaultClient: ApiClient | undefined;
