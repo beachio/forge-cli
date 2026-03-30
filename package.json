@@ -1,6 +1,6 @@
 {
   "name": "@beachio/forge-cli",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Command line interface for GetForge.com — deploy and manage your Forge sites from the terminal",
   "type": "module",
   "bin": {
