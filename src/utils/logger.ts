@@ -72,6 +72,12 @@ export function statusBadge(value: string): string {
       return chalk.dim(value);
     case 'failed':
       return chalk.red(value);
+    case 'open':
+      return chalk.yellow(value);
+    case 'resolved':
+      return chalk.green(value);
+    case 'dismissed':
+      return chalk.dim(value);
     default:
       return value;
   }

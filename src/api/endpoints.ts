@@ -92,6 +92,22 @@ export interface DeployResponse {
   version?: number;
 }
 
+export interface RedeployDetail {
+  site_id: number;
+  url: string;
+  mode: string;
+  source: 'github' | 'bitbucket' | 'dropbox' | null;
+  same_version: boolean;
+  version_id: number | null;
+  status: string;
+}
+
+export interface RedeployResponse {
+  redeploy?: RedeployDetail;
+  success?: boolean;
+  message?: string;
+}
+
 export interface VersionEntry {
   id: number;
   version_number: number;
@@ -180,4 +196,36 @@ export interface OrgSwitchResponse {
   message: string;
   organisation_id: number | null;
   organisation_name?: string;
+}
+
+export interface ProjectSite {
+  id: number;
+  url: string;
+  site_token: string;
+  mode: string;
+  deployed_at: string | null;
+  ssl: boolean;
+  parent_site_id: number | null;
+}
+
+export interface Project {
+  id: number;
+  name: string;
+  icon: string;
+  icon_color: string;
+  organisation_id: number | null;
+  organisation_name: string | null;
+  sites_count: number;
+  sites: ProjectSite[];
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface ProjectsResponse {
+  projects: Project[];
+}
+
+export interface ProjectResponse {
+  project: Project;
+  message?: string;
 }

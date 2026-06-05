@@ -63,6 +63,81 @@ function findSiteTokenByName(siteName: string, siteTokens: Record<string, string
   return undefined;
 }
 
+function normalizeSiteName(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/.*$/, '')
+    .replace(/\/+$/, '');
+}
+
+function siteNameMatches(targetSite: string, candidateUrl: string): boolean {
+  const target = normalizeSiteName(targetSite);
+  const candidate = normalizeSiteName(candidateUrl);
+  if (!target || !candidate) return false;
+
+  const variants = new Set<string>([target]);
+  if (target.endsWith('.getforge.io')) {
+    variants.add(target.slice(0, -'.getforge.io'.length));
+  } else {
+    variants.add(`${target}.getforge.io`);
+  }
+
+  for (const variant of variants) {
+    if (candidate === variant || candidate.startsWith(`${variant}.`)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+type SiteTokenLookupEntry = {
+  url: string;
+  site_token?: string;
+};
+
+function extractSiteTokenLookupEntries(raw: unknown): SiteTokenLookupEntry[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => {
+        if (typeof item === 'string') {
+          return { url: item };
+        }
+        if (!item || typeof item !== 'object') return undefined;
+
+        const candidate = item as Record<string, unknown>;
+        if (typeof candidate.url === 'string') {
+          return {
+            url: candidate.url,
+            site_token: typeof candidate.site_token === 'string' ? candidate.site_token : undefined,
+          };
+        }
+
+        if (candidate.site && typeof candidate.site === 'object') {
+          const nested = candidate.site as Record<string, unknown>;
+          if (typeof nested.url === 'string') {
+            return {
+              url: nested.url,
+              site_token: typeof nested.site_token === 'string' ? nested.site_token : undefined,
+            };
+          }
+        }
+
+        return undefined;
+      })
+      .filter((entry): entry is SiteTokenLookupEntry => Boolean(entry));
+  }
+
+  if (raw && typeof raw === 'object' && 'sites' in raw) {
+    const response = raw as { sites?: unknown };
+    return extractSiteTokenLookupEntries(response.sites);
+  }
+
+  return [];
+}
+
 export function resolveSiteToken(options: ResolveOptions = {}): string {
   if (options.siteToken) return options.siteToken;
 
@@ -86,7 +161,9 @@ export function resolveSiteToken(options: ResolveOptions = {}): string {
   );
 }
 
-export async function resolveSiteTokenWithFallback(options: ResolveOptions & { site?: string } = {}): Promise<string> {
+export async function resolveSiteTokenWithFallback(
+  options: ResolveOptions & { site?: string; organisationId?: string | number } = {},
+): Promise<string> {
   try {
     return resolveSiteToken(options);
   } catch {
@@ -104,19 +181,23 @@ export async function resolveSiteTokenWithFallback(options: ResolveOptions & { s
   const { getApiClient } = await import('../api/client.js');
   const { API_PATHS } = await import('../config/constants.js');
   const client = getApiClient();
-  const raw = await client.get<{ sites: Array<{ url: string; site_token: string }> } | string[]>(
+  const query: Record<string, string> | undefined =
+    options.organisationId !== undefined
+      ? {
+          organisation_id:
+            options.organisationId === 'personal' || options.organisationId === 0
+              ? '0'
+              : String(options.organisationId),
+        }
+      : undefined;
+  const raw = await client.get<unknown>(
     API_PATHS.sites,
-    { token: auth.token },
+    { token: auth.token, query },
   );
 
-  if (!Array.isArray(raw) && raw.sites) {
-    const name = siteName.toLowerCase();
-    const match = raw.sites.find((s) => {
-      const url = s.url.toLowerCase();
-      return url === name || url === `${name}.getforge.io` || url.startsWith(`${name}.`);
-    });
-    if (match?.site_token) return match.site_token;
-  }
+  const sites = extractSiteTokenLookupEntries(raw);
+  const match = sites.find((site) => siteNameMatches(siteName, site.url));
+  if (match?.site_token) return match.site_token;
 
   throw new AuthError(
     `Could not find site token for "${siteName}". Check the site name or provide --site-token.`,

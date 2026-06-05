@@ -1,18 +1,6 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+declare const __CLI_VERSION__: string;
 
-function readPackageVersion(): string {
-  try {
-    const __dirname = dirname(fileURLToPath(import.meta.url));
-    const pkg = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf-8'));
-    return pkg.version;
-  } catch {
-    return '2.0.0';
-  }
-}
-
-export const VERSION = readPackageVersion();
+export const VERSION: string = __CLI_VERSION__;
 
 export const API_BASE_URL = 'https://api.getforge.com';
 
@@ -21,6 +9,7 @@ export const API_PATHS = {
   sites: '/api/v2/cli/sites',
   create: '/api/v2/cli/create',
   deploy: '/api/v2/cli/deploy',
+  redeploy: '/api/v2/cli/redeploy',
   versionsInfo: '/api/v2/cli/versions_info',
   versions: '/api/v2/cli/versions',
   rollback: '/api/v2/cli/rollback',
@@ -34,6 +23,8 @@ export const API_PATHS = {
   usage: '/api/v2/cli/usage',
   organisations: '/api/v2/cli/organisations',
   organisationsSwitch: '/api/v2/cli/organisations/switch',
+  projects: '/api/v2/cli/projects',
+  feedbacks: '/api/v2/cli/feedbacks',
 
   oauthAuthorize: '/oauth/authorize',
   oauthToken: '/oauth/token',

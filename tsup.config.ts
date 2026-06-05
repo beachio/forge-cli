@@ -1,6 +1,8 @@
 import { defineConfig } from 'tsup';
 import { readFileSync, writeFileSync } from 'node:fs';
 
+const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
+
 export default defineConfig({
   entry: {
     'bin/forge-cli': 'bin/forge-cli.ts',
@@ -13,6 +15,9 @@ export default defineConfig({
   splitting: true,
   sourcemap: true,
   dts: { entry: 'src/index.ts' },
+  define: {
+    __CLI_VERSION__: JSON.stringify(pkg.version),
+  },
   onSuccess: async () => {
     const cliPath = 'dist/bin/forge-cli.js';
     const content = readFileSync(cliPath, 'utf-8');
