@@ -122,6 +122,8 @@ forge token revoke <id>
 | `sites:write` | Create new sites |
 | `sites:deploy` | Deploy to sites |
 | `forms:read` | Read form submissions |
+| `feedbacks:read` | List and view site feedback |
+| `feedbacks:write` | Resolve, dismiss, or delete feedback |
 | `analytics:read` | Read site analytics |
 | `bandwidth:read` | Read bandwidth usage |
 | `organisations:read` | Read organisations |
@@ -183,6 +185,45 @@ forge info --site my-site.getforge.io    # Show info for a specific site
 ```
 
 Displays site configuration including SSL, compiler, build settings, environment variables, current version, and deploy status.
+
+### Site Feedback
+
+Review and triage tester feedback from staging and development preview sites (User Feedback mode). Feedback is scoped to environment sites, not production.
+
+```bash
+# List open feedback on a staging/dev site
+forge feedback list --site 57972 --status open
+
+# Show full detail (selector, screenshot, client metadata)
+forge feedback show 42 --site 57972
+
+# Mark resolved after shipping a fix
+forge feedback resolve 42 --site 57972
+
+# Dismiss or delete items
+forge feedback dismiss 42 --site 57972
+forge feedback delete 42 --site 57972
+
+# JSON output for agents and CI
+forge feedback list --site my-site-forge-development.getforge.io --json
+```
+
+| Command | Description |
+|---|---|
+| `feedback list` | List feedback with optional `--status` and `--type` filters |
+| `feedback show <id>` | Show full feedback detail |
+| `feedback resolve <id>` | Mark feedback as resolved |
+| `feedback dismiss <id>` | Mark feedback as dismissed |
+| `feedback delete <id>` | Permanently delete feedback |
+
+Use `--site` with a numeric site ID, site name/URL, or site token. The `sites:read` and `sites:write` scopes also satisfy feedback read/write requirements.
+
+Recommended agent token:
+
+```bash
+forge token create --name "Feedback review agent" \
+  --scopes feedbacks:read,feedbacks:write --site-ids 57972
+```
 
 ### Delete a Site
 

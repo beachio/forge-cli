@@ -8,6 +8,8 @@ export const SCOPES = {
   PROJECTS_WRITE: 'projects:write',
   FORMS_READ: 'forms:read',
   FORMS_WRITE: 'forms:write',
+  FEEDBACKS_READ: 'feedbacks:read',
+  FEEDBACKS_WRITE: 'feedbacks:write',
   ANALYTICS_READ: 'analytics:read',
   BANDWIDTH_READ: 'bandwidth:read',
   ORGANISATIONS_READ: 'organisations:read',
@@ -38,4 +40,9 @@ export const COMMAND_SCOPES: Record<string, Scope | null> = {
   'settings:domain': SCOPES.SITES_DEPLOY,
   'settings:compiler': SCOPES.SITES_DEPLOY,
   'settings:deploy-method': SCOPES.SITES_DEPLOY,
+  'feedback:list': SCOPES.FEEDBACKS_READ,
+  'feedback:show': SCOPES.FEEDBACKS_READ,
+  'feedback:resolve': SCOPES.FEEDBACKS_WRITE,
+  'feedback:dismiss': SCOPES.FEEDBACKS_WRITE,
+  'feedback:delete': SCOPES.FEEDBACKS_WRITE,
 };

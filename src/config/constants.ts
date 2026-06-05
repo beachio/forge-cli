@@ -24,6 +24,7 @@ export const API_PATHS = {
   organisations: '/api/v2/cli/organisations',
   organisationsSwitch: '/api/v2/cli/organisations/switch',
   projects: '/api/v2/cli/projects',
+  feedbacks: '/api/v2/cli/feedbacks',
 
   oauthAuthorize: '/oauth/authorize',
   oauthToken: '/oauth/token',

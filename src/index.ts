@@ -29,6 +29,7 @@ import { registerUsageCommand } from './commands/usage.js';
 import { registerDomainCommands } from './commands/domain/index.js';
 import { registerOrgCommands } from './commands/org/index.js';
 import { registerProjectCommands } from './commands/projects/index.js';
+import { registerFeedbackCommands } from './commands/feedback/index.js';
 
 export function createProgram(): Command {
   const program = new Command();
@@ -69,6 +70,7 @@ export function createProgram(): Command {
   registerDomainCommands(program);
   registerOrgCommands(program);
   registerProjectCommands(program);
+  registerFeedbackCommands(program);
 
   program.exitOverride((err) => {
     if (err.code === 'commander.version' || err.code === 'commander.helpDisplayed') {
