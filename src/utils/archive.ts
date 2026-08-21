@@ -1,5 +1,5 @@
-import archiver from 'archiver';
-import { createWriteStream, readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import yazl from 'yazl';
+import { createWriteStream, readFileSync, readdirSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, relative } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -36,16 +36,17 @@ export async function createDeployArchive(
 
   return new Promise((resolvePromise, reject) => {
     const output = createWriteStream(archivePath);
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    const zipfile = new yazl.ZipFile();
 
     output.on('close', () => resolvePromise(archivePath));
-    archive.on('error', reject);
+    output.on('error', reject);
+    zipfile.outputStream.on('error', reject);
 
-    archive.pipe(output);
+    zipfile.outputStream.pipe(output);
 
-    walkDirectory(resolvedSource, resolvedSource, ig, archive);
+    walkDirectory(resolvedSource, resolvedSource, ig, zipfile);
 
-    archive.finalize();
+    zipfile.end();
   });
 }
 
@@ -53,7 +54,7 @@ function walkDirectory(
   baseDir: string,
   currentDir: string,
   ig: ReturnType<typeof ignore.default>,
-  archive: archiver.Archiver,
+  zipfile: yazl.ZipFile,
 ): void {
   const entries = readdirSync(currentDir, { withFileTypes: true });
 
@@ -65,9 +66,9 @@ function walkDirectory(
     if (ig.ignores(testPath)) continue;
 
     if (entry.isDirectory()) {
-      walkDirectory(baseDir, fullPath, ig, archive);
+      walkDirectory(baseDir, fullPath, ig, zipfile);
     } else if (entry.isFile()) {
-      archive.file(fullPath, { name: relativePath });
+      zipfile.addFile(fullPath, relativePath, { compress: true, compressionLevel: 9 });
     }
   }
 }
