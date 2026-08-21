@@ -1,6 +1,6 @@
 {
   "name": "@beachio/forge-cli",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "description": "Command line interface for GetForge.com — deploy and manage your Forge sites from the terminal",
   "type": "module",
   "bin": {
@@ -66,5 +66,8 @@
     "tsup": "^8.4.0",
     "typescript": "^5.8.2",
     "vitest": "^3.0.9"
+  },
+  "overrides": {
+    "glob": "^13.0.6"
   }
 }
