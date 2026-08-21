@@ -3,6 +3,7 @@ import { getApiClient } from '../api/client.js';
 import { API_PATHS } from '../config/constants.js';
 import { resolveSiteTokenWithFallback } from '../auth/resolver.js';
 import type { RedeployResponse, RedeployDetail } from '../api/endpoints.js';
+import { ORG_OPTION_DESCRIPTION, validateOrgOption } from '../auth/org-context.js';
 import { ValidationError } from '../utils/errors.js';
 import * as logger from '../utils/logger.js';
 import { handleCommandResult } from '../utils/output.js';
@@ -19,21 +20,18 @@ export function registerRedeployCommand(program: Command): void {
     .command('redeploy')
     .description('Redeploy site from connected source provider')
     .option('-s, --site <site>', 'Site name')
-    .option('--org <id>', 'Organisation ID for site lookup (use "personal" or "0" for personal sites)')
+    .option('--org <id>', ORG_OPTION_DESCRIPTION)
     .option('--cache', 'Redeploy current version without pulling from source')
     .option('--delay <seconds>', 'Delay deploy start by N seconds')
     .action(async (options, cmd) => {
       const parentOpts = cmd.parent?.opts() || {};
-      const org = options.org as string | undefined;
-      if (org !== undefined && org !== 'personal' && org !== '0' && Number.isNaN(parseInt(org, 10))) {
-        throw new ValidationError('--org must be a numeric ID, "personal", or "0".', {});
-      }
+      validateOrgOption(options.org);
 
       const siteToken = await resolveSiteTokenWithFallback({
         siteToken: parentOpts.siteToken,
         token: parentOpts.token,
         site: options.site,
-        organisationId: org,
+        organisationId: options.org,
       });
 
       let delay: number | undefined;

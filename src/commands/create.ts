@@ -2,8 +2,15 @@ import { Command } from 'commander';
 import { getApiClient } from '../api/client.js';
 import { API_PATHS } from '../config/constants.js';
 import { resolveAuth } from '../auth/resolver.js';
+import {
+  organisationIdToQuery,
+  resolveOrganisationId,
+  validateOrgOption,
+} from '../auth/org-context.js';
 import * as logger from '../utils/logger.js';
 import { handleCommandResult } from '../utils/output.js';
+import { ValidationError } from '../utils/errors.js';
+import { isUrlAlreadyInUseMessage, urlAlreadyInUseMessage } from '../utils/site-url-messages.js';
 import { displayDnsInstructions, type DnsInstructions } from '../utils/dns-instructions.js';
 import type { ProjectsResponse } from '../api/endpoints.js';
 
@@ -40,6 +47,7 @@ export function registerCreateCommand(program: Command): void {
     .option('--project <id|name>', 'Add site to a project (folder) by ID or name')
     .action(async (options, cmd) => {
       const parentOpts = cmd.parent?.opts() || {};
+      validateOrgOption(options.org);
       const auth = resolveAuth({ token: parentOpts.token });
 
       const name = options.name.toLowerCase().trim();
@@ -63,8 +71,10 @@ export function registerCreateCommand(program: Command): void {
           const lookupSpin = logger.spinner(`Looking up project "${options.project}"...`);
           try {
             const client = getApiClient();
+            const projectQuery = organisationIdToQuery(resolveOrganisationId(options.org));
             const projectsResponse = await client.get<ProjectsResponse>(API_PATHS.projects, {
               token: auth.token,
+              query: projectQuery,
             });
             lookupSpin.stop();
             const match = (projectsResponse.projects || []).find(
@@ -94,8 +104,14 @@ export function registerCreateCommand(program: Command): void {
         if (options.custom) {
           body.custom_domain = options.custom;
         }
-        if (options.org) {
-          body.organisation_id = parseInt(options.org, 10);
+        const orgId = resolveOrganisationId(options.org);
+        if (orgId !== undefined) {
+          body.organisation_id =
+            orgId === 'personal' || orgId === 0 || orgId === '0'
+              ? 0
+              : typeof orgId === 'number'
+                ? orgId
+                : parseInt(String(orgId), 10);
         }
 
         const response = await client.post<CreateSiteResponse>(API_PATHS.create, {
@@ -130,6 +146,7 @@ export function registerCreateCommand(program: Command): void {
               logger.info(`  SSL:        ${site.ssl ? 'on' : 'off'}`);
               logger.info('');
               logger.dim(`Link this directory: forge add ${site.url}`);
+              logger.dim(`For CI/agents: forge add ${site.url} --save-token`);
             }
             return;
           }
@@ -166,10 +183,14 @@ export function registerCreateCommand(program: Command): void {
             );
           } else {
             logger.dim(`Link this directory: forge add ${site.url}`);
+            logger.dim(`For CI/agents: forge add ${site.url} --save-token`);
           }
         }
       } catch (err) {
         spin.stop();
+        if (err instanceof ValidationError && isUrlAlreadyInUseMessage(err.message)) {
+          throw new ValidationError(urlAlreadyInUseMessage(name), err.details);
+        }
         throw err;
       }
     });

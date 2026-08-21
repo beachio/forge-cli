@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { getApiClient } from '../../api/client.js';
 import { API_PATHS } from '../../config/constants.js';
 import { resolveSiteTokenWithFallback } from '../../auth/resolver.js';
+import { ORG_OPTION_DESCRIPTION, validateOrgOption } from '../../auth/org-context.js';
 import * as logger from '../../utils/logger.js';
 import { handleCommandResult } from '../../utils/output.js';
 
@@ -28,12 +29,15 @@ export function registerSettingsCommands(program: Command): void {
     .option('--build-command <cmd>', 'Custom build command (e.g. "npm run build")')
     .option('--build-folder <folder>', 'Build output folder (e.g. "dist")')
     .option('--squish <on|off>', 'Enable or disable TurboJS minification')
+    .option('--org <id>', ORG_OPTION_DESCRIPTION)
     .action(async (options, cmd) => {
       const parentOpts = cmd.parent?.opts() || {};
+      validateOrgOption(options.org);
       const siteToken = await resolveSiteTokenWithFallback({
         siteToken: parentOpts.siteToken,
         token: parentOpts.token,
         site: options.site,
+        organisationId: options.org,
       });
 
       const body: Record<string, unknown> = { site_token: siteToken };

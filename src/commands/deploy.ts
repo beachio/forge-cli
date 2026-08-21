@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { getApiClient } from '../api/client.js';
 import { API_PATHS } from '../config/constants.js';
 import { resolveSiteTokenWithFallback } from '../auth/resolver.js';
+import { ORG_OPTION_DESCRIPTION, validateOrgOption } from '../auth/org-context.js';
 import { getStoredCredentials } from '../auth/token-store.js';
 import { readForgeConfig } from '../config/forge-config.js';
 import { createDeployArchive } from '../utils/archive.js';
@@ -95,14 +96,17 @@ export function registerDeployCommand(program: Command): void {
     .option('-m, --message <message>', 'Version description')
     .option('-d, --directory <dir>', 'Directory to deploy')
     .option('--no-watch', 'Skip real-time deploy tracking')
+    .option('--org <id>', ORG_OPTION_DESCRIPTION)
     .action(async (options, cmd) => {
       const parentOpts = cmd.parent?.opts() || {};
       const config = readForgeConfig();
+      validateOrgOption(options.org);
 
       const siteToken = await resolveSiteTokenWithFallback({
         siteToken: parentOpts.siteToken,
         token: parentOpts.token,
         site: options.site,
+        organisationId: options.org,
       });
 
       const deployDir = resolve(options.directory || config?.deploy_directory || '.');

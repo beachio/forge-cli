@@ -3,6 +3,11 @@ import inquirer from 'inquirer';
 import { getApiClient } from '../../api/client.js';
 import { API_PATHS } from '../../config/constants.js';
 import { resolveAuth } from '../../auth/resolver.js';
+import {
+  organisationIdToQuery,
+  resolveOrganisationId,
+  validateOrgOption,
+} from '../../auth/org-context.js';
 import * as logger from '../../utils/logger.js';
 import { handleCommandResult } from '../../utils/output.js';
 import type { ProjectsResponse, ProjectResponse, Project } from '../../api/endpoints.js';
@@ -58,17 +63,17 @@ export function registerProjectCommands(program: Command): void {
   program
     .command('projects')
     .description('List your projects (folders)')
-    .option('--org <id>', 'Filter by organisation ID')
+    .option('--org <id>', 'Filter by organisation ID (defaults to active org from `forge org switch`)')
     .action(async (options, cmd) => {
       const parentOpts = cmd.parent?.opts() || {};
+      validateOrgOption(options.org);
       const auth = resolveAuth({ token: parentOpts.token });
 
       const spin = logger.spinner('Fetching projects...');
 
       try {
         const client = getApiClient();
-        const query: Record<string, string> = {};
-        if (options.org) query.organisation_id = options.org;
+        const query = organisationIdToQuery(resolveOrganisationId(options.org)) ?? {};
 
         const response = await client.get<ProjectsResponse>(API_PATHS.projects, {
           token: auth.token,
