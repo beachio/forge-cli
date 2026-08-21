@@ -1,6 +1,6 @@
 {
   "name": "@beachio/forge-cli",
-  "version": "2.2.2",
+  "version": "2.2.3",
   "description": "Command line interface for GetForge.com — deploy and manage your Forge sites from the terminal",
   "type": "module",
   "bin": {
@@ -48,7 +48,7 @@
   },
   "homepage": "https://getforge.com",
   "dependencies": {
-    "archiver": "^7.0.1",
+    "yazl": "^3.3.1",
     "chalk": "^5.4.1",
     "commander": "^13.1.0",
     "conf": "^13.1.0",
@@ -59,15 +59,12 @@
     "pusher-js": "^8.4.0"
   },
   "devDependencies": {
-    "@types/archiver": "^6.0.3",
+    "@types/yazl": "^3.3.1",
     "@types/node": "^22.13.10",
     "eslint": "^9.22.0",
     "prettier": "^3.5.3",
     "tsup": "^8.4.0",
     "typescript": "^5.8.2",
     "vitest": "^3.0.9"
-  },
-  "overrides": {
-    "glob": "^13.0.6"
   }
 }
