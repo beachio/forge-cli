@@ -7,6 +7,7 @@ import {
   PlanLimitError,
   AccountLockedError,
   ForgeError,
+  ApiError,
 } from '../utils/errors.js';
 import type { ApiErrorResponse } from './endpoints.js';
 
@@ -114,6 +115,28 @@ export class ApiClient {
     return this.request<T>(path, { ...options, method: 'DELETE' });
   }
 
+  async head(path: string, options: Omit<RequestOptions, 'method' | 'body'> = {}): Promise<Response> {
+    const { headers = {}, token, query } = options;
+    const url = new URL(path, this.baseUrl);
+    if (query) {
+      for (const [key, value] of Object.entries(query)) {
+        url.searchParams.set(key, value);
+      }
+    }
+
+    const requestHeaders: Record<string, string> = {
+      Accept: 'application/json',
+      'User-Agent': USER_AGENT,
+      ...headers,
+    };
+
+    if (token) {
+      requestHeaders['X-USER-TOKEN'] = token;
+    }
+
+    return fetch(url.toString(), { method: 'HEAD', headers: requestHeaders });
+  }
+
   private async handleErrorResponse(response: Response, responseText?: string): Promise<never> {
     let errorData: ApiErrorResponse | undefined;
 
@@ -152,7 +175,7 @@ export class ApiClient {
       }
 
       case 404:
-        throw new ForgeError(`Not found: ${message}`);
+        throw new ApiError(`Not found: ${message}`, 404);
 
       case 422:
         throw new ValidationError(message, errorData as unknown as Record<string, unknown>);

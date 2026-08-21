@@ -9,6 +9,9 @@ export const API_PATHS = {
   sites: '/api/v2/cli/sites',
   create: '/api/v2/cli/create',
   deploy: '/api/v2/cli/deploy',
+  deployInit: '/api/v2/cli/deploy/init',
+  deployComplete: '/api/v2/cli/deploy/complete',
+  deployStatus: '/api/v2/cli/deploy', // GET/HEAD /:deploy_id/status
   redeploy: '/api/v2/cli/redeploy',
   versionsInfo: '/api/v2/cli/versions_info',
   versions: '/api/v2/cli/versions',

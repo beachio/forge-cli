@@ -10,6 +10,16 @@ export class ForgeError extends Error {
   }
 }
 
+export class ApiError extends ForgeError {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message, EXIT_CODES.ERROR);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 export class AuthError extends ForgeError {
   readonly tokenExpired: boolean;
 
