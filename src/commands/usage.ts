@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { getApiClient } from '../api/client.js';
 import { API_PATHS } from '../config/constants.js';
 import { resolveSiteTokenWithFallback } from '../auth/resolver.js';
+import { ORG_OPTION_DESCRIPTION, validateOrgOption } from '../auth/org-context.js';
 import * as logger from '../utils/logger.js';
 import { handleCommandResult } from '../utils/output.js';
 
@@ -46,12 +47,15 @@ export function registerUsageCommand(program: Command): void {
     .description('Show bandwidth and build usage for a site')
     .option('-s, --site <site>', 'Site name')
     .option('--days <n>', 'Days of daily breakdown (default: 30, max: 365)')
+    .option('--org <id>', ORG_OPTION_DESCRIPTION)
     .action(async (options, cmd) => {
       const parentOpts = cmd.parent?.opts() || {};
+      validateOrgOption(options.org);
       const siteToken = await resolveSiteTokenWithFallback({
         siteToken: parentOpts.siteToken,
         token: parentOpts.token,
         site: options.site,
+        organisationId: options.org,
       });
 
       const spin = logger.spinner('Fetching usage data...');

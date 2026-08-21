@@ -1,8 +1,8 @@
 import { Command } from 'commander';
 import { getApiClient } from '../api/client.js';
 import { API_PATHS } from '../config/constants.js';
-import { resolveAuth } from '../auth/resolver.js';
-import { resolveSiteTokenWithFallback } from '../auth/resolver.js';
+import { resolveAuth, resolveSiteTokenWithFallback, siteNameMatches } from '../auth/resolver.js';
+import { ORG_OPTION_DESCRIPTION, validateOrgOption } from '../auth/org-context.js';
 import { readForgeConfig } from '../config/forge-config.js';
 import * as logger from '../utils/logger.js';
 import { handleCommandResult } from '../utils/output.js';
@@ -53,8 +53,10 @@ export function registerInfoCommand(program: Command): void {
     .command('info')
     .description('Show detailed information about a site')
     .option('-s, --site <site>', 'Site name')
+    .option('--org <id>', ORG_OPTION_DESCRIPTION)
     .action(async (options, cmd) => {
       const parentOpts = cmd.parent?.opts() || {};
+      validateOrgOption(options.org);
       const config = readForgeConfig();
       const siteName = options.site || config?.site;
 
@@ -67,6 +69,7 @@ export function registerInfoCommand(program: Command): void {
           siteToken: parentOpts.siteToken,
           token: parentOpts.token,
           site: options.site,
+          organisationId: options.org,
         }).catch(() => undefined);
 
         if (siteToken) {
@@ -87,17 +90,17 @@ export function registerInfoCommand(program: Command): void {
         if (!siteInfo && siteName) {
           const auth = resolveAuth({ token: parentOpts.token });
           const client = getApiClient();
+          const { organisationIdToQuery, resolveOrganisationId } = await import('../auth/org-context.js');
           const raw = await client.get<{ sites: SiteInfoResponse[] }>(
             API_PATHS.sites,
-            { token: auth.token },
+            {
+              token: auth.token,
+              query: organisationIdToQuery(resolveOrganisationId(options.org)),
+            },
           );
 
           if (raw.sites) {
-            const name = siteName.toLowerCase();
-            siteInfo = raw.sites.find((s) => {
-              const url = (s.url || '').toLowerCase();
-              return url === name || url === `${name}.getforge.io` || url.startsWith(`${name}.`);
-            });
+            siteInfo = raw.sites.find((s) => siteNameMatches(siteName, s.url || ''));
           }
         }
 

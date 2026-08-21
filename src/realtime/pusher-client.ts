@@ -1,6 +1,10 @@
-import Pusher from 'pusher-js';
+import PusherImport from 'pusher-js';
 import type { Channel } from 'pusher-js';
 import type { DeployLogEvent, VersionUpdateEvent, SiteUpdateEvent } from './types.js';
+
+// pusher-js is CJS; default ESM interop can yield the module namespace instead of
+// the constructor, which surfaces as "Pusher is not a constructor" at runtime.
+const Pusher = PusherImport.default ?? PusherImport;
 
 export interface DeployEventHandlers {
   onLog: (event: DeployLogEvent) => void;

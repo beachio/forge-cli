@@ -1,6 +1,8 @@
 import { getStoredCredentials, type StoredCredentials } from './token-store.js';
 import { readForgeConfig } from '../config/forge-config.js';
 import { AuthError } from '../utils/errors.js';
+import { organisationIdToQuery, resolveOrganisationId } from './org-context.js';
+import { siteNotInAccountMessage } from '../utils/site-url-messages.js';
 
 export interface AuthContext {
   token: string;
@@ -44,7 +46,10 @@ export function resolveAuth(options: ResolveOptions = {}): AuthContext {
   throw new AuthError('Not authenticated. Run `forge login` to get started.');
 }
 
-function findSiteTokenByName(siteName: string, siteTokens: Record<string, string>): string | undefined {
+export function findSiteTokenByName(
+  siteName: string,
+  siteTokens: Record<string, string>,
+): string | undefined {
   const normalised = siteName.toLowerCase().replace(/\s+/g, '');
 
   const direct = siteTokens[siteName] || siteTokens[normalised];
@@ -63,7 +68,7 @@ function findSiteTokenByName(siteName: string, siteTokens: Record<string, string
   return undefined;
 }
 
-function normalizeSiteName(input: string): string {
+export function normalizeSiteName(input: string): string {
   return input
     .trim()
     .toLowerCase()
@@ -72,7 +77,7 @@ function normalizeSiteName(input: string): string {
     .replace(/\/+$/, '');
 }
 
-function siteNameMatches(targetSite: string, candidateUrl: string): boolean {
+export function siteNameMatches(targetSite: string, candidateUrl: string): boolean {
   const target = normalizeSiteName(targetSite);
   const candidate = normalizeSiteName(candidateUrl);
   if (!target || !candidate) return false;
@@ -93,12 +98,12 @@ function siteNameMatches(targetSite: string, candidateUrl: string): boolean {
   return false;
 }
 
-type SiteTokenLookupEntry = {
+export type SiteTokenLookupEntry = {
   url: string;
   site_token?: string;
 };
 
-function extractSiteTokenLookupEntries(raw: unknown): SiteTokenLookupEntry[] {
+export function extractSiteTokenLookupEntries(raw: unknown): SiteTokenLookupEntry[] {
   if (Array.isArray(raw)) {
     return raw
       .map((item) => {
@@ -138,31 +143,83 @@ function extractSiteTokenLookupEntries(raw: unknown): SiteTokenLookupEntry[] {
   return [];
 }
 
-export function resolveSiteToken(options: ResolveOptions = {}): string {
-  if (options.siteToken) return options.siteToken;
+export type SiteTokenSource =
+  | 'flag'
+  | 'env'
+  | 'config'
+  | 'login_cache'
+  | 'api_lookup'
+  | 'none';
+
+export function getLocalSiteTokenSource(options: {
+  siteToken?: string;
+  site?: string;
+}): { token?: string; source: SiteTokenSource } {
+  if (options.siteToken) {
+    return { token: options.siteToken, source: 'flag' };
+  }
 
   const envSiteToken = process.env.FORGE_SITE_TOKEN;
-  if (envSiteToken) return envSiteToken;
+  if (envSiteToken) {
+    return { token: envSiteToken, source: 'env' };
+  }
 
   const config = readForgeConfig();
-  if (config?.site_token) return config.site_token;
+  if (config?.site_token) {
+    return { token: config.site_token, source: 'config' };
+  }
 
   const stored = getStoredCredentials();
-  if (stored?.site_tokens) {
-    const siteName = config?.site;
-    if (siteName) {
-      const found = findSiteTokenByName(siteName, stored.site_tokens);
-      if (found) return found;
+  const siteName = options.site || config?.site;
+  if (stored?.site_tokens && siteName) {
+    const found = findSiteTokenByName(siteName, stored.site_tokens);
+    if (found) {
+      return { token: found, source: 'login_cache' };
     }
   }
 
+  return { source: 'none' };
+}
+
+export function resolveSiteToken(options: ResolveOptions = {}): string {
+  const local = getLocalSiteTokenSource(options);
+  if (local.token) return local.token;
+
   throw new AuthError(
-    'No site token found. Link a site with `forge add <site>` or provide --site-token.',
+    'No site token found locally. Provide --site-token, set FORGE_SITE_TOKEN, add site_token to forge.json, or run `forge add <site>` to cache one with your CLI token.',
   );
 }
 
+export async function fetchSiteList(options: {
+  token?: string;
+  organisationId?: string | number | null;
+}): Promise<SiteTokenLookupEntry[]> {
+  const auth = resolveAuth({ token: options.token });
+  const { getApiClient } = await import('../api/client.js');
+  const { API_PATHS } = await import('../config/constants.js');
+  const client = getApiClient();
+  const orgId = resolveOrganisationId(options.organisationId);
+  const query = organisationIdToQuery(orgId);
+
+  const raw = await client.get<unknown>(API_PATHS.sites, {
+    token: auth.token,
+    query,
+  });
+
+  return extractSiteTokenLookupEntries(raw);
+}
+
+export async function lookupSiteViaApi(options: {
+  siteName: string;
+  token?: string;
+  organisationId?: string | number | null;
+}): Promise<SiteTokenLookupEntry | undefined> {
+  const sites = await fetchSiteList(options);
+  return sites.find((site) => siteNameMatches(options.siteName, site.url));
+}
+
 export async function resolveSiteTokenWithFallback(
-  options: ResolveOptions & { site?: string; organisationId?: string | number } = {},
+  options: ResolveOptions & { site?: string; organisationId?: string | number | null } = {},
 ): Promise<string> {
   try {
     return resolveSiteToken(options);
@@ -173,35 +230,41 @@ export async function resolveSiteTokenWithFallback(
   const siteName = options.site || readForgeConfig()?.site;
   if (!siteName) {
     throw new AuthError(
-      'No site token found. Use --site <name>, --site-token <token>, or run `forge add <site>`.',
+      'No site token found. Specify the target site with --site, link the directory with `forge add <site>`, or provide --site-token.',
     );
   }
 
-  const auth = resolveAuth({ token: options.token });
-  const { getApiClient } = await import('../api/client.js');
-  const { API_PATHS } = await import('../config/constants.js');
-  const client = getApiClient();
-  const query: Record<string, string> | undefined =
-    options.organisationId !== undefined
-      ? {
-          organisation_id:
-            options.organisationId === 'personal' || options.organisationId === 0
-              ? '0'
-              : String(options.organisationId),
-        }
-      : undefined;
-  const raw = await client.get<unknown>(
-    API_PATHS.sites,
-    { token: auth.token, query },
-  );
+  const orgId = resolveOrganisationId(options.organisationId);
+  const match = await lookupSiteViaApi({
+    siteName,
+    token: options.token,
+    organisationId: orgId,
+  });
 
-  const sites = extractSiteTokenLookupEntries(raw);
-  const match = sites.find((site) => siteNameMatches(siteName, site.url));
   if (match?.site_token) return match.site_token;
 
   throw new AuthError(
-    `Could not find site token for "${siteName}". Check the site name or provide --site-token.`,
+    siteNotInAccountMessage(siteName, { orgFiltered: orgId !== undefined }),
   );
+}
+
+export function mergeSiteTokenIntoCredentials(
+  url: string,
+  siteToken: string,
+  stored?: StoredCredentials,
+): StoredCredentials {
+  const current = stored ?? getStoredCredentials();
+  if (!current) {
+    throw new AuthError('Not authenticated. Run `forge login` to get started.');
+  }
+
+  return {
+    ...current,
+    site_tokens: {
+      ...(current.site_tokens ?? {}),
+      [url]: siteToken,
+    },
+  };
 }
 
 export function requireAuth(options: ResolveOptions = {}): AuthContext {
@@ -214,4 +277,11 @@ export function getOptionalAuth(options: ResolveOptions = {}): AuthContext | und
   } catch {
     return undefined;
   }
+}
+
+export function inferLoginMethod(stored?: StoredCredentials): 'email' | 'oauth' | 'with-token' | 'unknown' {
+  if (!stored) return 'unknown';
+  if (stored.user_email || stored.site_tokens) return 'email';
+  if (stored.expires_at) return 'oauth';
+  return 'with-token';
 }

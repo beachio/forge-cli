@@ -2,6 +2,11 @@ import { Command } from 'commander';
 import { getApiClient } from '../api/client.js';
 import { API_PATHS } from '../config/constants.js';
 import { resolveAuth } from '../auth/resolver.js';
+import {
+  organisationIdToQuery,
+  resolveOrganisationId,
+  validateOrgOption,
+} from '../auth/org-context.js';
 import * as logger from '../utils/logger.js';
 import { handleCommandResult } from '../utils/output.js';
 
@@ -38,6 +43,7 @@ export function registerSitesCommand(program: Command): void {
     .option('--limit <n>', 'Results per page (default: 100, max: 500)')
     .action(async (options, cmd) => {
       const parentOpts = cmd.parent?.opts() || {};
+      validateOrgOption(options.org);
       const auth = resolveAuth({ token: parentOpts.token });
 
       const spin = logger.spinner('Fetching sites...');
@@ -46,10 +52,8 @@ export function registerSitesCommand(program: Command): void {
         const client = getApiClient();
         const query: Record<string, string> = {};
         if (options.environment) query.environment = options.environment;
-        if (options.org != null) {
-          const orgVal = options.org === 'personal' ? '0' : options.org;
-          query.organisation_id = orgVal;
-        }
+        const orgQuery = organisationIdToQuery(resolveOrganisationId(options.org));
+        if (orgQuery) Object.assign(query, orgQuery);
         if (options.limit) query.limit = options.limit;
 
         const explicitPage = options.page != null;

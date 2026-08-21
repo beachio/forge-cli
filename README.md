@@ -42,14 +42,38 @@ These options apply to all commands:
 
 ## Authentication
 
-Forge CLI supports multiple authentication methods for different workflows.
+The CLI uses **two credential types**. They serve different purposes and are stored in different places.
+
+| Credential | Scope | Used for |
+|---|---|---|
+| **CLI token** | Your Forge account | `forge sites`, `forge create`, org/project management, and resolving site tokens via the API |
+| **Site token** | A single site | `forge deploy`, `forge env`, `forge settings`, `forge versions`, and other site operations |
+
+**Storage:**
+
+- `~/.forge/credentials.json` — CLI token, cached site tokens, org context, deploy watch credentials (email login)
+- `forge.json` — linked site URL (`site`) and optional inline site token (`site_token`)
+- Environment — `FORGE_TOKEN` (CLI), `FORGE_SITE_TOKEN` (site)
+- Flags — `--token` (CLI), `--site-token` (site)
+
+### Which credential does each command need?
+
+| Commands | CLI token | Site token |
+|---|---|---|
+| `forge sites`, `forge create`, `forge org *`, `forge token *`, `forge projects *` | Required | — |
+| `forge deploy`, `forge env`, `forge settings`, `forge versions`, `forge rollback`, `forge usage` | For API lookup | Required (resolved automatically when possible) |
+| `forge destroy`, `forge info`, `forge redeploy`, `forge feedback *` | Required | Required (resolved automatically when possible) |
+
+Site tokens are resolved automatically when you have a CLI token and a linked site. You should not need to copy site tokens from the Forge dashboard for normal workflows.
 
 ### Interactive Login
 
 ```bash
-forge login                              # Prompts for email and password
+forge login                              # Prompts for email and password (recommended)
 forge login --email me@example.com       # Prompts for password only
 ```
+
+Email/password login caches site tokens and enables real-time deploy log streaming.
 
 ### Direct Token
 
@@ -63,19 +87,22 @@ forge login --with-token <cli-token>     # Store a pre-existing CLI token
 forge login --browser                    # Opens browser for authentication
 ```
 
+OAuth login stores a CLI token only. Run `forge add <site>` to cache site tokens, or use scoped CLI tokens for agents.
+
 ### Environment Variables
 
 For CI/CD pipelines and automation:
 
 ```bash
-export FORGE_TOKEN=<cli-token>           # CLI token for general access
-export FORGE_SITE_TOKEN=<site-token>     # Site token for deploy-only access
+export FORGE_TOKEN=<cli-token>           # CLI token — recommended for agents managing many sites
+export FORGE_SITE_TOKEN=<site-token>     # Site token — per-site deploy access
 ```
 
 ### Check Auth Status
 
 ```bash
-forge whoami                             # Show current user, token type, and org context
+forge whoami                             # Show CLI auth, org context, linked site, token sources
+forge auth doctor                        # Diagnose token resolution and deploy readiness
 ```
 
 ### Logout
@@ -146,7 +173,7 @@ forge sites --page 1 --limit 20         # Paginate results
 | Option | Description |
 |---|---|
 | `--environment <env>` | Filter by environment (`production`, `staging`, `development`) |
-| `--org <id>` | Filter by organisation ID (`personal` or `0` for personal sites) |
+| `--org <id>` | Filter by organisation ID (`personal` or `0` for personal sites). Defaults to active org from `forge org switch`. |
 | `--page <n>` | Page number (shows single page instead of all results) |
 | `--limit <n>` | Results per page (default: 100, max: 500) |
 
@@ -172,10 +199,12 @@ When `--project` is a name rather than a numeric ID, the CLI resolves it automat
 ### Link a Directory
 
 ```bash
-forge add my-site.getforge.io           # Link current directory to a site
+forge add my-site.getforge.io            # Validate site, link directory, cache site token
+forge add my-site.getforge.io --save-token   # Also write site token to forge.json (CI/agents)
+forge add my-site.getforge.io --org 123  # Look up site under a specific organisation
 ```
 
-This writes the site URL to `forge.json` so subsequent commands know which site to target.
+`forge add` writes the site URL to `forge.json`, validates the site exists via your CLI token, and caches the site token in credentials. Use `--save-token` when you want the site token committed to `forge.json` for CI pipelines.
 
 ### Site Info
 
@@ -249,6 +278,7 @@ forge deploy --no-watch                  # Skip real-time deploy tracking
 | `-m, --message <msg>` | Version description |
 | `-d, --directory <dir>` | Directory to deploy (overrides `forge.json`) |
 | `--no-watch` | Skip real-time deploy log streaming |
+| `--org <id>` | Organisation for site token lookup (defaults to active org from `forge org switch`) |
 
 Deploys create a zip archive of your project, upload it, and stream real-time build logs back to the terminal. Use `--no-watch` to fire and forget.
 
@@ -265,7 +295,7 @@ forge redeploy --delay 30                # Queue deploy with a 30 second delay
 | Option | Description |
 |---|---|
 | `-s, --site <site>` | Site name |
-| `--org <id>` | Organisation ID for site lookup (`personal` or `0` for personal) |
+| `--org <id>` | Organisation for site token lookup (defaults to active org from `forge org switch`) |
 | `--cache` | Redeploy current version without pulling from source |
 | `--delay <seconds>` | Delay deploy start by N seconds |
 
@@ -395,7 +425,7 @@ forge org switch --id 123                # Switch to an organisation
 forge org switch --id personal           # Switch back to personal context
 ```
 
-When you switch context, subsequent commands like `forge sites` and `forge create` operate within that organisation.
+When you switch context, subsequent commands like `forge sites`, `forge create`, `forge projects`, and site token lookup default to that organisation. Override with `--org` on any command.
 
 ## Projects (Folders)
 
@@ -478,14 +508,23 @@ Creates a `forge.json` in your project root:
 
 You can create a `.forgeignore` file with gitignore-style patterns to exclude files from deployment. This works alongside the `ignore` array in `forge.json`.
 
-### Site Resolution
+### Site and Token Resolution
 
-For commands that operate on a site, the target is resolved in this order:
+Two separate concepts apply to site-scoped commands:
+
+**1. Which site?** (identity)
 
 1. `--site` flag on the command
-2. `--site-token` global option
-3. `site` or `site_token` in `forge.json`
-4. Stored site tokens from login
+2. `site` in `forge.json`
+
+**2. Which site token?** (credential)
+
+1. `--site-token` flag or `FORGE_SITE_TOKEN` env
+2. `site_token` in `forge.json`
+3. Cached site tokens in credentials (from login or `forge add`)
+4. API lookup using your CLI token (respects org context from `forge org switch`)
+
+If token resolution fails, run `forge auth doctor` for actionable guidance.
 
 ## Output Modes
 
@@ -496,10 +535,22 @@ forge deploy --quiet                     # Minimal output, exit codes only
 
 All commands support `--json` and `--quiet`. JSON mode outputs structured data suitable for piping to `jq` or consuming from scripts and AI agents.
 
-## CI/CD Usage
+## CI/CD and Agent Usage
+
+**Recommended: one scoped CLI token for many sites**
+
+```bash
+forge token create --name "Deploy Agent" --scopes sites:deploy --site-ids 101,102,103
+export FORGE_TOKEN=<token>
+forge deploy --site my-site.getforge.io --json
+```
+
+After `forge org switch --id 123`, deploy and site commands automatically use that org for token lookup.
+
+**Alternative: per-site token in CI**
 
 ```yaml
-# GitHub Actions example
+# GitHub Actions — one CLI token, linked project
 - name: Deploy to Forge
   env:
     FORGE_TOKEN: ${{ secrets.FORGE_TOKEN }}
@@ -508,9 +559,8 @@ All commands support `--json` and `--quiet`. JSON mode outputs structured data s
     forge deploy --json
 ```
 
-For deploy-only access with a site token:
-
 ```yaml
+# GitHub Actions — site token only (no account access)
 - name: Deploy to Forge
   env:
     FORGE_SITE_TOKEN: ${{ secrets.FORGE_SITE_TOKEN }}
@@ -518,6 +568,8 @@ For deploy-only access with a site token:
     npm install -g @beachio/forge-cli
     forge deploy --json
 ```
+
+Use `forge auth doctor --json` in CI to verify token resolution before deploying.
 
 ### Exit Codes
 
@@ -536,6 +588,7 @@ For deploy-only access with a site token:
 | `forge login` | Authenticate with Forge |
 | `forge logout` | Clear stored credentials |
 | `forge whoami` | Show current auth status |
+| `forge auth doctor` | Diagnose auth and site token resolution |
 | `forge token create` | Create a scoped CLI token |
 | `forge token list` | List active CLI tokens |
 | `forge token revoke <id>` | Revoke a CLI token |

@@ -1,6 +1,11 @@
 import { Command } from 'commander';
-import { getStoredCredentials, hasStoredCredentials } from '../auth/token-store.js';
-import { getOptionalAuth } from '../auth/resolver.js';
+import { getStoredCredentials } from '../auth/token-store.js';
+import { readForgeConfig } from '../config/forge-config.js';
+import {
+  getLocalSiteTokenSource,
+  getOptionalAuth,
+  inferLoginMethod,
+} from '../auth/resolver.js';
 import * as logger from '../utils/logger.js';
 import { handleCommandResult } from '../utils/output.js';
 
@@ -21,15 +26,25 @@ export function registerWhoamiCommand(program: Command): void {
       }
 
       const stored = getStoredCredentials();
+      const config = readForgeConfig();
+      const loginMethod = inferLoginMethod(stored);
+      const cachedSiteTokens = stored?.site_tokens ? Object.keys(stored.site_tokens).length : 0;
+      const linkedSite = config?.site;
+      const localSiteToken = linkedSite
+        ? getLocalSiteTokenSource({ site: linkedSite, siteToken: parentOpts.siteToken })
+        : { source: 'none' as const };
 
       const info = {
         authenticated: true,
         token_type: auth.tokenType,
         source: auth.source,
+        login_method: loginMethod,
         user_email: stored?.user_email,
         user_name: stored?.user_name,
         expires_at: stored?.expires_at,
-        has_site_tokens: stored?.site_tokens ? Object.keys(stored.site_tokens).length : 0,
+        cached_site_tokens: cachedSiteTokens,
+        linked_site: linkedSite ?? null,
+        linked_site_token_source: linkedSite ? localSiteToken.source : null,
         organisation_id: stored?.organisation_id ?? null,
         organisation_name: stored?.organisation_name ?? null,
       };
@@ -39,6 +54,7 @@ export function registerWhoamiCommand(program: Command): void {
       if (logger.getOutputMode() === 'human') {
         logger.info(`  Token type:  ${auth.tokenType}`);
         logger.info(`  Source:      ${auth.source}`);
+        logger.info(`  Login:       ${loginMethod}`);
         if (stored?.user_email) logger.info(`  Email:       ${stored.user_email}`);
         if (stored?.user_name) logger.info(`  User:        ${stored.user_name}`);
         if (stored?.organisation_id) {
@@ -47,8 +63,16 @@ export function registerWhoamiCommand(program: Command): void {
           logger.info(`  Context:     Personal`);
         }
         if (stored?.expires_at) logger.info(`  Expires:     ${stored.expires_at}`);
-        if (stored?.site_tokens) {
-          logger.info(`  Sites:       ${Object.keys(stored.site_tokens).length} linked`);
+        logger.info(`  Cached site tokens: ${cachedSiteTokens} (from login/add)`);
+        if (linkedSite) {
+          logger.info(`  Linked site: ${linkedSite}`);
+          if (localSiteToken.source === 'none') {
+            logger.warn(
+              '  No local site token for linked site. Run `forge add <site>` or `forge auth doctor`.',
+            );
+          } else {
+            logger.info(`  Site token:  available (${localSiteToken.source})`);
+          }
         }
       }
     });
