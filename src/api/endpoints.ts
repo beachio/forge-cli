@@ -92,6 +92,39 @@ export interface DeployResponse {
   version?: number;
 }
 
+export interface DeployUploadTarget {
+  method: 'PUT' | 'POST';
+  url: string;
+  headers?: Record<string, string>;
+}
+
+export interface DeployInitResponse {
+  deploy_id: string;
+  version_id?: number | null;
+  upload: DeployUploadTarget;
+  expires_at?: string;
+  limits?: {
+    max_archive_size_bytes: number;
+    upload_expires_in_seconds: number;
+  };
+}
+
+export interface DeployCompleteResponse {
+  deploy: DeployDetail;
+  success?: boolean;
+  message?: string;
+}
+
+export interface DeployStatusResponse {
+  deploy_id: string;
+  status: string;
+  version_id?: number | null;
+  version_number?: number | null;
+  url?: string;
+  site_id?: number;
+  error?: string;
+}
+
 export interface RedeployDetail {
   site_id: number;
   url: string;

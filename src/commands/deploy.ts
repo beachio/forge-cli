@@ -1,18 +1,24 @@
 import { Command } from 'commander';
-import { readFileSync, unlinkSync } from 'node:fs';
+import { unlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { getApiClient } from '../api/client.js';
-import { API_PATHS } from '../config/constants.js';
-import { resolveSiteTokenWithFallback } from '../auth/resolver.js';
+import { resolveAuth, resolveSiteTokenWithFallback } from '../auth/resolver.js';
 import { ORG_OPTION_DESCRIPTION, validateOrgOption } from '../auth/org-context.js';
 import { getStoredCredentials } from '../auth/token-store.js';
 import { readForgeConfig } from '../config/forge-config.js';
+import {
+  completeDirectDeploy,
+  deployViaLegacyMultipart,
+  initDirectDeploy,
+  isDirectUploadUnavailable,
+  uploadArchiveToPresignedUrl,
+} from '../deploy/direct-upload.js';
 import { createDeployArchive } from '../utils/archive.js';
 import * as logger from '../utils/logger.js';
 import { handleCommandResult } from '../utils/output.js';
 import { ForgePusherClient } from '../realtime/pusher-client.js';
 import { DeployRenderer } from '../realtime/deploy-renderer.js';
-import type { DeployResponse, DeployDetail } from '../api/endpoints.js';
+import type { DeployDetail, DeployResponse } from '../api/endpoints.js';
 import type { DeployLogEvent } from '../realtime/types.js';
 
 const DEPLOY_TIMEOUT_MS = 5 * 60 * 1000;
@@ -20,7 +26,7 @@ const DEPLOY_TIMEOUT_MS = 5 * 60 * 1000;
 /**
  * Attaches handlers to an already-subscribed Pusher client and waits for
  * a terminal deploy event. The client must have been subscribed (and
- * buffering events) before the deploy POST was issued.
+ * buffering events) before the deploy is triggered.
  */
 function watchDeploy(
   client: ForgePusherClient,
@@ -88,6 +94,83 @@ function watchDeploy(
   });
 }
 
+function formatDeploySuccess(deploy: DeployDetail): string {
+  return [
+    `Deployed Version #${deploy.version_number} to ${deploy.url}`,
+    logger.getOutputMode() === 'human'
+      ? `  Status: ${logger.statusBadge(deploy.status)} | Mode: ${deploy.mode}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+async function resolveDeployResponse(options: {
+  siteToken: string;
+  archivePath: string;
+  message?: string;
+  cliToken?: string;
+  legacyUpload: boolean;
+}): Promise<DeployResponse> {
+  const apiClient = getApiClient();
+
+  if (options.legacyUpload) {
+    return deployViaLegacyMultipart(apiClient, options);
+  }
+
+  try {
+    const init = await initDirectDeploy(apiClient, options);
+    await uploadArchiveToPresignedUrl(options.archivePath, init.upload);
+    const complete = await completeDirectDeploy(apiClient, {
+      deployId: init.deploy_id,
+      cliToken: options.cliToken,
+    });
+    return complete;
+  } catch (error) {
+    if (!isDirectUploadUnavailable(error)) {
+      throw error;
+    }
+
+    logger.dim('Direct upload unavailable; falling back to legacy deploy endpoint.');
+    return deployViaLegacyMultipart(apiClient, options);
+  }
+}
+
+async function handleDeployResult(options: {
+  response: DeployResponse;
+  pusherClient?: ForgePusherClient;
+  watch: boolean;
+}): Promise<void> {
+  const { response, pusherClient, watch } = options;
+
+  if (watch && pusherClient && response.deploy?.version_id) {
+    const d = response.deploy;
+    const renderer = new DeployRenderer(d.url, d.version_id, d.version_number);
+
+    renderer.start();
+
+    const result = await watchDeploy(pusherClient, d, renderer);
+
+    renderer.finish(result.succeeded, result.failMessage);
+
+    if (!result.succeeded) {
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  pusherClient?.disconnect();
+
+  if (response.deploy) {
+    handleCommandResult(response, formatDeploySuccess(response.deploy));
+  } else {
+    handleCommandResult(
+      response,
+      `Deployed successfully${response.version ? ` (version ${response.version})` : ''}.`,
+    );
+  }
+}
+
 export function registerDeployCommand(program: Command): void {
   program
     .command('deploy')
@@ -96,11 +179,14 @@ export function registerDeployCommand(program: Command): void {
     .option('-m, --message <message>', 'Version description')
     .option('-d, --directory <dir>', 'Directory to deploy')
     .option('--no-watch', 'Skip real-time deploy tracking')
+    .option('--legacy-upload', 'Upload archive via legacy multipart API endpoint')
     .option('--org <id>', ORG_OPTION_DESCRIPTION)
     .action(async (options, cmd) => {
       const parentOpts = cmd.parent?.opts() || {};
       const config = readForgeConfig();
       validateOrgOption(options.org);
+
+      const auth = resolveAuth({ token: parentOpts.token });
 
       const siteToken = await resolveSiteTokenWithFallback({
         siteToken: parentOpts.siteToken,
@@ -116,8 +202,7 @@ export function registerDeployCommand(program: Command): void {
         stored?.pusher_key &&
         stored?.pusher_channel;
 
-      // Subscribe to Pusher BEFORE submitting the deploy so we never
-      // miss events that fire immediately after the POST returns.
+      // Subscribe to Pusher before triggering deploy so we never miss early events.
       let pusherClient: ForgePusherClient | undefined;
       if (canWatch) {
         pusherClient = new ForgePusherClient(stored.pusher_key!, stored.pusher_channel!);
@@ -132,57 +217,22 @@ export function registerDeployCommand(program: Command): void {
         spin.text = 'Creating archive...';
         archivePath = await createDeployArchive(deployDir, config?.ignore);
 
-        spin.text = 'Uploading...';
-        const archiveBuffer = readFileSync(archivePath);
-        const formData = new FormData();
-        formData.append('site_tokens', siteToken);
-        if (options.message) {
-          formData.append('message', options.message);
-        }
-        formData.append(
-          'archive',
-          new Blob([archiveBuffer], { type: 'application/zip' }),
-          'deploy.zip',
-        );
-
-        const apiClient = getApiClient();
-        const response = await apiClient.post<DeployResponse>(API_PATHS.deploy, {
-          body: formData as unknown as Record<string, unknown>,
+        spin.text = 'Uploading archive...';
+        const response = await resolveDeployResponse({
+          siteToken,
+          archivePath,
+          message: options.message,
+          cliToken: auth.token,
+          legacyUpload: options.legacyUpload === true,
         });
 
         spin.stop();
 
-        if (pusherClient && response.deploy?.version_id) {
-          const d = response.deploy;
-          const renderer = new DeployRenderer(d.url, d.version_id, d.version_number);
-
-          renderer.start();
-
-          const result = await watchDeploy(pusherClient, d, renderer);
-
-          renderer.finish(result.succeeded, result.failMessage);
-
-          if (!result.succeeded) {
-            process.exitCode = 1;
-          }
-        } else {
-          pusherClient?.disconnect();
-
-          if (response.deploy) {
-            const d = response.deploy;
-            handleCommandResult(response, [
-              `Deployed Version #${d.version_number} to ${d.url}`,
-              logger.getOutputMode() === 'human'
-                ? `  Status: ${logger.statusBadge(d.status)} | Mode: ${d.mode}`
-                : '',
-            ].filter(Boolean).join('\n'));
-          } else {
-            handleCommandResult(
-              response,
-              `Deployed successfully${response.version ? ` (version ${response.version})` : ''}.`,
-            );
-          }
-        }
+        await handleDeployResult({
+          response,
+          pusherClient,
+          watch: options.watch !== false,
+        });
       } catch (err) {
         spin.stop();
         pusherClient?.disconnect();

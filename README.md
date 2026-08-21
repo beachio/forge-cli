@@ -278,9 +278,10 @@ forge deploy --no-watch                  # Skip real-time deploy tracking
 | `-m, --message <msg>` | Version description |
 | `-d, --directory <dir>` | Directory to deploy (overrides `forge.json`) |
 | `--no-watch` | Skip real-time deploy log streaming |
+| `--legacy-upload` | Force legacy multipart upload via `api.getforge.com` (slower; fallback if direct upload unavailable) |
 | `--org <id>` | Organisation for site token lookup (defaults to active org from `forge org switch`) |
 
-Deploys create a zip archive of your project, upload it, and stream real-time build logs back to the terminal. Use `--no-watch` to fire and forget.
+Deploys create a zip archive, upload it directly to storage (same path as gleo.dev), then trigger processing on Forge. Real-time build logs stream back via Pusher. Use `--no-watch` to return after deploy is queued.
 
 ### Redeploy (from source)
 
